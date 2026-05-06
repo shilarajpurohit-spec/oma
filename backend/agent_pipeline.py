@@ -1,5 +1,5 @@
 """
-OMA Agent — Agent Pipeline (Module 10)
+OMA Agent — Agent Pipeline
 Orchestrates the full migration flow, multi-file migration, chat, and fix application.
 """
 
@@ -24,7 +24,6 @@ from backend.schemas import (
     MultiFileMigrationResponse,
     MultiFileMigrationResult,
 )
-from backend.version_detector import VersionDetectionError, detect_version
 
 logger = logging.getLogger(__name__)
 
@@ -34,25 +33,14 @@ _MIGRATABLE_EXTENSIONS = {".py", ".xml", ".js", ".ts", ".csv", ".json"}
 
 async def run_migration(request: MigrationRequest) -> MigrationResponse:
     """Run the full migration pipeline on a single file."""
-    # 1. Version Detection (optional cross-check)
-    try:
-        detected = detect_version(request.file_content, request.filename)
-        if detected != request.source_version:
-            logger.info(
-                "User selected %s but detected %s. Using selected.",
-                request.source_version, detected
-            )
-    except VersionDetectionError:
-        pass  # Rely on user's selected version
-
-    # 2. Migration (Rules + LLM + Diff)
+    # Migration (Brain diffs + LLM + Diff)
     if request.incremental:
         response = await run_incremental_migration(request)
     else:
         response = await migrate_code(request)
     response.filename = request.filename
 
-    # 3. Explanation
+    # Explanation
     explanation = await explain_migration(
         original_code=response.original_code,
         migrated_code=response.migrated_code,
@@ -66,7 +54,7 @@ async def run_migration(request: MigrationRequest) -> MigrationResponse:
 async def run_multi_migration(request: MultiFileMigrationRequest) -> MultiFileMigrationResponse:
     """Run the migration pipeline on every file in a module concurrently.
 
-    Files with unsupported extensions are skipped and listed in skipped_files.
+    Files with unsupported extensions are skipped.
     All supported files are migrated concurrently for speed.
     """
     import os
@@ -96,7 +84,6 @@ async def run_multi_migration(request: MultiFileMigrationRequest) -> MultiFileMi
             skipped.append(file_item.filename)
             return None
 
-    # Concurrently migrate all files
     tasks = [_migrate_one(f) for f in request.files]
     raw_results = await asyncio.gather(*tasks)
 
@@ -126,7 +113,6 @@ async def run_apply_fix(request: ApplyFixRequest) -> ApplyFixResponse:
     )
     try:
         patched = await llm.chat_completion(messages, temperature=0.1)
-        # Sanity check: if LLM returned empty or just whitespace, keep original
         if not patched or not patched.strip():
             return ApplyFixResponse(
                 patched_code=request.code,
@@ -146,7 +132,6 @@ async def run_apply_fix(request: ApplyFixRequest) -> ApplyFixResponse:
 async def run_chat(request: ChatRequest) -> ChatResponse:
     """Process a chat message through the LLM."""
     messages = build_chat_prompt(user_message=request.message, context=request.context)
-
     try:
         reply = await llm.chat_completion(messages, temperature=0.7)
         return ChatResponse(reply=reply)
