@@ -10,6 +10,7 @@ import logging
 
 from backend.explainer import explain_migration
 from backend.migration_engine import migrate_code
+from backend.migration_chainer import run_incremental_migration
 from backend.openrouter_client import llm
 from backend.prompt_builder import build_chat_prompt, build_apply_fix_prompt
 from backend.schemas import (
@@ -45,7 +46,10 @@ async def run_migration(request: MigrationRequest) -> MigrationResponse:
         pass  # Rely on user's selected version
 
     # 2. Migration (Rules + LLM + Diff)
-    response = await migrate_code(request)
+    if request.incremental:
+        response = await run_incremental_migration(request)
+    else:
+        response = await migrate_code(request)
     response.filename = request.filename
 
     # 3. Explanation
@@ -79,8 +83,10 @@ async def run_multi_migration(request: MultiFileMigrationRequest) -> MultiFileMi
         single_req = MigrationRequest(
             module_name=request.module_name,
             source_version=request.source_version,
+            target_version=request.target_version,
             filename=file_item.filename,
             file_content=file_item.content,
+            incremental=request.incremental,
         )
         try:
             response = await run_migration(single_req)
@@ -102,7 +108,8 @@ async def run_multi_migration(request: MultiFileMigrationRequest) -> MultiFileMi
 
     return MultiFileMigrationResponse(
         module_name=request.module_name,
-        source_version=str(request.source_version),
+        source_version=str(request.source_version.value),
+        target_version=str(request.target_version.value),
         results=results,
         total_issues=total_issues,
         skipped_files=skipped,

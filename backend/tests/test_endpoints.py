@@ -23,6 +23,7 @@ async def test_api_migrate(mock_run, client):
     mock_run.return_value = MigrationResponse(
         module_name="test",
         source_version="15.0",
+        target_version="19.0",
         original_code="old",
         migrated_code="new"
     )
@@ -30,8 +31,10 @@ async def test_api_migrate(mock_run, client):
     resp = await client.post("/api/migrate", json={
         "module_name": "test",
         "source_version": "15.0",
+        "target_version": "19.0",
         "file_content": "old",
-        "filename": "test.py"
+        "filename": "test.py",
+        "incremental": False
     })
     
     assert resp.status_code == 200

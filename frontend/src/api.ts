@@ -1,8 +1,10 @@
 export interface MigrationRequest {
   module_name: string;
   source_version: string;
+  target_version: string;
   filename: string;
   file_content: string;
+  incremental: boolean;
 }
 
 export interface FileItem {
@@ -13,7 +15,9 @@ export interface FileItem {
 export interface MultiFileMigrationRequest {
   module_name: string;
   source_version: string;
+  target_version: string;
   files: FileItem[];
+  incremental: boolean;
 }
 
 export interface MigrationIssue {
@@ -128,6 +132,16 @@ export const api = {
       body: JSON.stringify(request),
     });
     if (!res.ok) throw new Error("Failed to apply fix: " + await res.text());
+    return res.json();
+  },
+
+  async detectVersion(code: string, filename: string): Promise<{ version: string }> {
+    const res = await fetch(`${API_BASE}/detect-version`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, filename }),
+    });
+    if (!res.ok) throw new Error("Failed to detect version");
     return res.json();
   },
 };

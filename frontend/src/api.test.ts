@@ -16,8 +16,10 @@ describe('API Client', () => {
     const result = await api.migrate({
       module_name: 'test_module',
       source_version: '15.0',
+      target_version: '19.0',
       filename: 'models.py',
       file_content: 'def old_code(): pass',
+      incremental: false,
     });
 
     expect(global.fetch).toHaveBeenCalledWith('http://localhost:8000/api/migrate', expect.objectContaining({

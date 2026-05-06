@@ -24,6 +24,8 @@ function App() {
   const [fileName, setFileName] = useState("models.py");
   const [moduleName, setModuleName] = useState("my_custom_module");
   const [sourceVersion, setSourceVersion] = useState("15.0");
+  const [targetVersion, setTargetVersion] = useState("19.0");
+  const [isIncremental, setIsIncremental] = useState(false);
 
   // ── Upload state ──────────────────────────────────────────────
   const [showUpload, setShowUpload] = useState(false);
@@ -53,6 +55,27 @@ function App() {
     setShowUpload(false);
     // Store files for multi migrate
     (window as any).__oma_multi_files = files;
+    detectVersionIfPossible(files[0].content, files[0].filename);
+  };
+
+  const handleCodeChange = (newCode: string | undefined) => {
+    const codeStr = newCode || "";
+    setCode(codeStr);
+    if (codeStr.length > 50 && migrateMode === "single") {
+      // Basic debounce would be better here, but we'll run on large changes
+      detectVersionIfPossible(codeStr, fileName);
+    }
+  };
+
+  const detectVersionIfPossible = async (fileCode: string, name: string) => {
+    try {
+      const res = await api.detectVersion(fileCode, name);
+      if (res.version && res.version !== sourceVersion) {
+        setSourceVersion(res.version);
+      }
+    } catch (e) {
+      // ignore
+    }
   };
 
   // ── Single-file migrate ───────────────────────────────────────
@@ -64,8 +87,10 @@ function App() {
       const res = await api.migrate({
         module_name: moduleName,
         source_version: sourceVersion,
+        target_version: targetVersion,
         filename: fileName,
         file_content: code,
+        incremental: isIncremental,
       });
       setResult(res);
       setMigrateMode("single");
@@ -89,7 +114,9 @@ function App() {
       const res = await api.migrateMulti({
         module_name: moduleName,
         source_version: sourceVersion,
+        target_version: targetVersion,
         files: files.map(f => ({ filename: f.filename, content: f.content })),
+        incremental: isIncremental,
       });
       setMultiResult(res);
       setActiveFileIdx(0);
@@ -191,7 +218,30 @@ function App() {
                 <option value="16.0">v16.0</option>
                 <option value="17.0">v17.0</option>
                 <option value="18.0">v18.0</option>
+                <option value="19.0">v19.0</option>
               </select>
+              <span className="text-neutral-500">→</span>
+              <select
+                id="target-version-select"
+                value={targetVersion}
+                onChange={e => setTargetVersion(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-neutral-200 outline-none focus:ring-1 focus:ring-blue-500 transition-shadow appearance-none min-w-[70px]"
+              >
+                {["16.0", "17.0", "18.0", "19.0"]
+                  .filter(v => parseFloat(v) > parseFloat(sourceVersion))
+                  .map(v => (
+                    <option key={v} value={v}>v{v}</option>
+                  ))}
+              </select>
+              <label className="flex items-center gap-1.5 text-xs text-neutral-400 ml-1 cursor-pointer" title="Step-by-step migration through intermediate versions">
+                <input 
+                  type="checkbox" 
+                  checked={isIncremental}
+                  onChange={e => setIsIncremental(e.target.checked)}
+                  className="rounded border-neutral-700 bg-neutral-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-neutral-900"
+                />
+                <span className="hidden xl:inline">Incremental</span>
+              </label>
               {/* Upload toggle */}
               <button
                 id="toggle-upload-btn"
@@ -246,7 +296,7 @@ function App() {
 
           {/* Editor */}
           <div className="flex-1 min-h-0 relative">
-            <CodeEditor value={code} onChange={e => setCode(e || "")} />
+            <CodeEditor value={code} onChange={handleCodeChange} />
 
             {/* Migrate Button */}
             <div className="absolute bottom-6 right-6 z-20 flex items-center gap-2">

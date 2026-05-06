@@ -11,6 +11,7 @@ def test_generate_report_json():
     resp = MigrationResponse(
         module_name="sale",
         source_version="15.0",
+        target_version="19.0",
         original_code="old",
         migrated_code="new",
         explanation="test explain"
@@ -26,6 +27,7 @@ def test_generate_report_text():
     resp = MigrationResponse(
         module_name="sale",
         source_version="15.0",
+        target_version="19.0",
         original_code="old",
         migrated_code="new",
         explanation="test explain",

@@ -1,0 +1,13 @@
+cd /home/shila/oma-agent
+
+# Interactive menu (pick sample or paste your own code)
+python poc/run_poc.py
+
+# Direct — migrate the XML sample
+python poc/run_poc.py --file poc/samples/fiscal_year_views.xml --version 15.0
+
+# Direct — migrate the Python model
+python poc/run_poc.py --file poc/samples/fiscal_year_model.py --version 15.0
+
+# Your own file
+python poc/run_poc.py --file path/to/your/views.xml --version 16.0

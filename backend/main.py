@@ -16,8 +16,10 @@ from backend.schemas import (
     ChatRequest, ChatResponse,
     ReportRequest,
     ApplyFixRequest, ApplyFixResponse,
+    VersionDetectRequest, VersionDetectResponse,
 )
 from backend.agent_pipeline import run_migration, run_multi_migration, run_chat, run_apply_fix
+from backend.version_detector import detect_version, VersionDetectionError
 from backend.report_gen import generate_report
 from fastapi.responses import PlainTextResponse
 
@@ -89,3 +91,13 @@ async def api_migrate_multi(request: MultiFileMigrationRequest):
 async def api_apply_fix(request: ApplyFixRequest):
     """Apply a targeted fix to source code using the LLM."""
     return await run_apply_fix(request)
+
+
+@app.post("/api/detect-version", response_model=VersionDetectResponse, tags=["system"])
+async def api_detect_version(request: VersionDetectRequest):
+    """Attempt to detect Odoo version from source code."""
+    try:
+        version = detect_version(request.code, request.filename)
+        return VersionDetectResponse(version=version)
+    except VersionDetectionError:
+        return VersionDetectResponse(version="15.0")  # Default if unknown

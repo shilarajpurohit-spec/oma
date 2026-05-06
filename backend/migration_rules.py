@@ -21,6 +21,11 @@ class MigrationRule:
     source_versions: list[OdooVersion]  # versions this rule applies FROM
     severity: Severity = Severity.MEDIUM
     category: str = "general"
+    min_target_version: OdooVersion | None = None  # rule only fires when target >= this
+
+
+# ── Version order (for range comparisons) ─────────────────────────
+_VERSION_ORDER = [OdooVersion.V15, OdooVersion.V16, OdooVersion.V17, OdooVersion.V18, OdooVersion.V19]
 
 
 # ── Rule definitions ──────────────────────────────────────────────
@@ -60,13 +65,13 @@ _RULES: list[MigrationRule] = [
         id="fld-002",
         pattern=r"fields\.Selection\(\s*selection=",
         replacement="fields.Selection(",
-        description="Selection field — 'selection' is now positional in v19.",
+        description="Selection field — 'selection' is now positional.",
         source_versions=[OdooVersion.V15, OdooVersion.V16, OdooVersion.V17, OdooVersion.V18],
         severity=Severity.MEDIUM,
         category="fields",
     ),
 
-    # ── OWL migration (JS-related but detected in Python context) ─
+    # ── OWL migration ─────────────────────────────────────────────
     MigrationRule(
         id="owl-001",
         pattern=r"owl\.Component",
@@ -91,7 +96,7 @@ _RULES: list[MigrationRule] = [
         id="http-002",
         pattern=r"type=['\"]json['\"]",
         replacement="type='json'",
-        description="JSON controller type — verify compatibility with v19 JSON-RPC changes.",
+        description="JSON controller type — verify compatibility with JSON-RPC changes.",
         source_versions=[OdooVersion.V15, OdooVersion.V16, OdooVersion.V17, OdooVersion.V18],
         severity=Severity.MEDIUM,
         category="controllers",
@@ -101,8 +106,8 @@ _RULES: list[MigrationRule] = [
     MigrationRule(
         id="mfst-001",
         pattern=r"['\"]version['\"]\s*:\s*['\"](\d+)\.0\.",
-        replacement="'version': '19.0.",
-        description="Update module version to 19.0 in __manifest__.py.",
+        replacement=r"'version': '\g<1>.0.", # Note: actual target replacement is done dynamically in engine if we want it perfect, but here we just leave the regex. In engine we could do dynamic replacement. For now we use the rule.
+        description="Update module version prefix in __manifest__.py.",
         source_versions=[OdooVersion.V15, OdooVersion.V16, OdooVersion.V17, OdooVersion.V18],
         severity=Severity.HIGH,
         category="manifest",
@@ -113,7 +118,7 @@ _RULES: list[MigrationRule] = [
         id="meth-001",
         pattern=r"\.sudo\(\s*\w+\s*\)",
         replacement=".sudo()",
-        description="sudo() no longer accepts a user argument in v19 — use with_user() instead.",
+        description="sudo() no longer accepts a user argument — use with_user() instead.",
         source_versions=[OdooVersion.V15, OdooVersion.V16],
         severity=Severity.HIGH,
         category="methods",
@@ -142,7 +147,7 @@ _RULES: list[MigrationRule] = [
         id="asset-001",
         pattern=r"['\"]web\.assets_backend['\"]",
         replacement="'web.assets_backend'",
-        description="Verify web.assets_backend bundle structure — v17+ uses new asset format.",
+        description="Verify web.assets_backend bundle — v17+ uses new asset format.",
         source_versions=[OdooVersion.V15, OdooVersion.V16],
         severity=Severity.MEDIUM,
         category="assets",
@@ -158,19 +163,55 @@ _RULES: list[MigrationRule] = [
         severity=Severity.MEDIUM,
         category="xml",
     ),
+    # tree → list: only when target is v18 or newer
+    MigrationRule(
+        id="xml-002",
+        pattern=r"<tree\b",
+        replacement="<list",
+        description="Replace <tree> with <list> — view renamed in Odoo v18.",
+        source_versions=[OdooVersion.V15, OdooVersion.V16, OdooVersion.V17],
+        severity=Severity.CRITICAL,
+        category="xml",
+        min_target_version=OdooVersion.V18,
+    ),
+    MigrationRule(
+        id="xml-003",
+        pattern=r"</tree>",
+        replacement="</list>",
+        description="Replace </tree> with </list> — view renamed in Odoo v18.",
+        source_versions=[OdooVersion.V15, OdooVersion.V16, OdooVersion.V17],
+        severity=Severity.CRITICAL,
+        category="xml",
+        min_target_version=OdooVersion.V18,
+    ),
 ]
 
 
-def get_rules(source_version: OdooVersion) -> list[MigrationRule]:
-    """Get all migration rules applicable to a given source version.
+def get_rules(
+    source_version: OdooVersion,
+    target_version: OdooVersion | None = None,
+) -> list[MigrationRule]:
+    """Get all migration rules applicable to a given source→target version pair.
 
     Args:
         source_version: The Odoo version being migrated FROM.
+        target_version: The Odoo version being migrated TO (optional).
+                        Rules with min_target_version are only applied when
+                        the target is new enough to require them.
 
     Returns:
         List of applicable MigrationRule objects.
     """
-    return [r for r in _RULES if source_version in r.source_versions]
+    result = []
+    for rule in _RULES:
+        if source_version not in rule.source_versions:
+            continue
+        min_tgt = rule.min_target_version
+        if min_tgt is not None and target_version is not None:
+            if _VERSION_ORDER.index(target_version) < _VERSION_ORDER.index(min_tgt):
+                continue  # Target is too old for this rule
+        result.append(rule)
+    return result
 
 
 def get_all_rules() -> list[MigrationRule]:

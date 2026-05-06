@@ -1,0 +1,6 @@
+Command	        What it does
+make run	Start backend (port 8000)
+npm run dev (in /frontend)	Start frontend (port 5173)
+make test	Run all tests with coverage
+make lint	Run the linter
+make clean	Remove cache/build files

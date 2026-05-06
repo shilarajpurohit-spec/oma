@@ -12,6 +12,7 @@ from typing import Any
 
 from backend.issue_detector import detect_issues
 from backend.migration_rules import get_rules
+from backend.odoo_brain import fetch_brain_context, format_brain_context
 from backend.openrouter_client import llm
 from backend.prompt_builder import build_migration_prompt
 from backend.schemas import MigrationIssue, MigrationRequest, MigrationResponse
@@ -20,18 +21,21 @@ logger = logging.getLogger(__name__)
 
 
 async def migrate_code(request: MigrationRequest, context: dict[str, Any] | None = None) -> MigrationResponse:
-    """Migrate Odoo source code to v19.
+    """Migrate Odoo source code from source_version to target_version.
 
     Process:
       1. Apply regex-based static migration rules.
       2. Detect issues on the original code for reporting.
-      3. Call the LLM to perform complex/structural migrations.
-      4. Generate a unified diff.
+      3. Fetch real Odoo GitHub snippets via the agent brain.
+      4. Call the LLM with brain context injected into the prompt.
+      5. Generate a unified diff.
     """
-    logger.info("Migrating %s from %s to 19.0", request.filename, request.source_version)
+    src = request.source_version.value
+    tgt = request.target_version.value
+    logger.info("Migrating %s from %s to %s", request.filename, src, tgt)
 
-    # 1. Apply static rules
-    rules = get_rules(request.source_version)
+    # 1. Apply static rules (only rules applicable to this source→target range)
+    rules = get_rules(request.source_version, request.target_version)
     modified_code = request.file_content
 
     for rule in rules:
@@ -43,11 +47,34 @@ async def migrate_code(request: MigrationRequest, context: dict[str, Any] | None
     # 2. Detect issues on the original code
     issues: list[MigrationIssue] = detect_issues(request.file_content, request.source_version)
 
-    # 3. Call LLM for complex migration
+    # 3. Fetch real Odoo reference code from GitHub (agent brain)
+    brain_context_str: str | None = None
+    try:
+        brain = await fetch_brain_context(
+            source_version=src,
+            target_version=tgt,
+            filename=request.filename,
+        )
+        if brain:
+            brain_context_str = format_brain_context(brain)
+            logger.info(
+                "Brain loaded %d source + %d target snippets for %s (%s→%s)",
+                len(brain.source_snippets),
+                len(brain.target_snippets),
+                request.filename,
+                src,
+                tgt,
+            )
+    except Exception as e:
+        logger.warning("Brain fetch failed, continuing without context: %s", e)
+
+    # 4. Call LLM for complex migration (with brain context injected)
     messages = build_migration_prompt(
-        source_version=request.source_version.value,
+        source_version=src,
+        target_version=tgt,
         filename=request.filename,
         code=modified_code,
+        brain_context=brain_context_str,
     )
 
     try:
@@ -59,19 +86,18 @@ async def migrate_code(request: MigrationRequest, context: dict[str, Any] | None
 
     # Strip markdown fences if the LLM ignored instructions
     if final_code.startswith("```"):
-        final_code = re.sub(r"^```python\s*", "", final_code)
-        final_code = re.sub(r"^```\s*", "", final_code)
+        final_code = re.sub(r"^```\w*\s*", "", final_code)
         final_code = re.sub(r"\s*```\s*$", "", final_code)
         if not final_code.endswith("\n"):
             final_code += "\n"
 
-    # 4. Generate diff
-    diff = _generate_diff(request.file_content, final_code, request.filename)
+    # 5. Generate diff
+    diff = _generate_diff(request.file_content, final_code, request.filename, src, tgt)
 
     return MigrationResponse(
         module_name=request.module_name,
-        source_version=request.source_version.value,
-        target_version="19.0",
+        source_version=src,
+        target_version=tgt,
         original_code=request.file_content,
         migrated_code=final_code,
         diff=diff,
@@ -80,15 +106,15 @@ async def migrate_code(request: MigrationRequest, context: dict[str, Any] | None
     )
 
 
-def _generate_diff(original: str, new: str, filename: str) -> str:
+def _generate_diff(original: str, new: str, filename: str, src: str, tgt: str) -> str:
     original_lines = original.splitlines(keepends=True)
     new_lines = new.splitlines(keepends=True)
-    
+
     diff = difflib.unified_diff(
         original_lines,
         new_lines,
-        fromfile=f"a/{filename} (v15-18)",
-        tofile=f"b/{filename} (v19)",
+        fromfile=f"a/{filename} (v{src})",
+        tofile=f"b/{filename} (v{tgt})",
         n=3,
     )
     return "".join(diff)

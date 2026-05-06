@@ -24,9 +24,10 @@ class TestOdooVersion:
         assert OdooVersion.V16 == "16.0"
         assert OdooVersion.V17 == "17.0"
         assert OdooVersion.V18 == "18.0"
+        assert OdooVersion.V19 == "19.0"
 
     def test_version_count(self):
-        assert len(OdooVersion) == 4
+        assert len(OdooVersion) == 5
 
 
 class TestSeverity:
@@ -91,6 +92,7 @@ class TestMigrationResponse:
         resp = MigrationResponse(
             module_name="sale_custom",
             source_version="15.0",
+            target_version="19.0",
             original_code="old code",
             migrated_code="new code",
         )
@@ -102,6 +104,7 @@ class TestMigrationResponse:
         resp = MigrationResponse(
             module_name="test",
             source_version="16.0",
+            target_version="19.0",
             original_code="old",
             migrated_code="new",
             issues=[

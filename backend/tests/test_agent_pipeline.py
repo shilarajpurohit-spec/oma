@@ -13,6 +13,7 @@ def mock_response():
     return MigrationResponse(
         module_name="test",
         source_version="15.0",
+        target_version="19.0",
         original_code="old",
         migrated_code="new",
         diff="",
