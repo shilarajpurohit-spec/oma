@@ -30,9 +30,8 @@ async def test_migrate_code_success(mock_llm, sample_request):
     # The LLM return value should be adopted
     assert "models.Model" in resp.migrated_code
     
-    # Issues should be detected on the original code
-    assert len(resp.issues) > 0
-    assert any("openerp" in i.message for i in resp.issues)
+    # Pure diff-based migration does not generate static rule-based issues.
+    assert resp.issues == []
     
     # Diff should be populated
     assert resp.diff.startswith("--- a/test.py")
@@ -58,5 +57,5 @@ async def test_migrate_code_llm_failure_fallback(mock_llm, sample_request):
     
     resp = await migrate_code(sample_request)
     
-    # Static rules should still apply (e.g. openerp -> odoo)
-    assert "from odoo import models" in resp.migrated_code
+    # When the LLM fails, fallback preserves the original source code.
+    assert resp.migrated_code == sample_request.file_content

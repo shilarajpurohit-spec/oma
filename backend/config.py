@@ -3,6 +3,7 @@ OMA Agent — Configuration (Module 02)
 Loads settings from .env using pydantic-settings.
 """
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,9 +17,19 @@ class Settings(BaseSettings):
     )
 
     # ── OpenRouter / LLM ──────────────────────────────────────────
+    llm_api_key: str = ""
+    llm_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    llm_model: str = "google/gemini-2.0-flash-exp:free"
+    openrouter_base_url: str = ""
+    llm_model: str = "deepseek/deepseek-r1:free"
+
+    @model_validator(mode="after")
+    def normalize_api_settings(self):
+        if not self.openrouter_api_key:
+            self.openrouter_api_key = self.llm_api_key
+        if not self.openrouter_base_url:
+            self.openrouter_base_url = self.llm_base_url
+        return self
 
     # ── Application ──────────────────────────────────────────────
     app_env: str = "development"

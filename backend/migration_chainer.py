@@ -62,13 +62,12 @@ async def run_incremental_migration(
         steps_record.append({
             "step": f"{step_src.value} -> {step_tgt.value}",
             "migrated_code": current_code,
-            "issues": [issue.dict() for issue in step_response.issues],
+            "issues": [issue.model_dump() for issue in step_response.issues],
         })
 
     # The final step_response contains the diff between the penultimate and target.
     # We need to construct a final response that represents the FULL jump.
     from backend.migration_engine import _generate_diff
-    from backend.issue_detector import detect_issues
 
     full_diff = _generate_diff(
         original=original_code,
@@ -78,9 +77,6 @@ async def run_incremental_migration(
         tgt=request.target_version.value
     )
 
-    # Detect issues on the original code for the final report
-    original_issues = detect_issues(original_code, request.source_version)
-
     return MigrationResponse(
         module_name=request.module_name,
         source_version=request.source_version.value,
@@ -88,7 +84,7 @@ async def run_incremental_migration(
         original_code=original_code,
         migrated_code=current_code,
         diff=full_diff,
-        issues=original_issues,
+        issues=[],
         explanation="",  # Will be filled by explainer if needed
         filename=request.filename,
         incremental_steps=steps_record,

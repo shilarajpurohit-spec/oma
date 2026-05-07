@@ -18,6 +18,8 @@ async def explain_migration(
     original_code: str,
     migrated_code: str,
     issues: list[MigrationIssue] | None = None,
+    source_version: str = "source",
+    target_version: str = "target",
 ) -> str:
     """Generate a human-readable explanation of migration changes.
 
@@ -32,6 +34,8 @@ async def explain_migration(
         original=original_code,
         migrated=migrated_code,
         issues=issues_dicts,
+        source_version=source_version,
+        target_version=target_version,
     )
 
     try:

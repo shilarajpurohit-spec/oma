@@ -73,7 +73,7 @@ async def test_api_report_json(client):
     
     resp = await client.post("/api/report", json=payload)
     assert resp.status_code == 200
-    assert "test" in resp.json()  # json response
+    assert resp.json()["module_name"] == "test"  # json response with proper dict
 
 
 @pytest.mark.asyncio

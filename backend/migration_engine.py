@@ -73,11 +73,15 @@ async def migrate_code(
         final_code = request.file_content
 
     # Strip markdown fences if the LLM ignored instructions
-    if final_code.startswith("```"):
-        final_code = re.sub(r"^```\w*\s*", "", final_code)
-        final_code = re.sub(r"\s*```\s*$", "", final_code)
-        if not final_code.endswith("\n"):
-            final_code += "\n"
+    # Handles both leading preamble (e.g., "Here is the migrated code:\n```python")
+    # and trailing fences
+    # Strip markdown fences — handles preamble, clean fence, or no fence
+    fence_match = re.search(r"```[\w-]*\n?(.*?)```", final_code, re.DOTALL)
+    if fence_match:
+        final_code = fence_match.group(1)
+    final_code = final_code.strip()
+    if final_code and not final_code.endswith("\n"):
+        final_code += "\n"
 
     # 4. Generate diff
     diff = _generate_diff(request.file_content, final_code, request.filename, src, tgt)

@@ -3,8 +3,10 @@ OMA Agent — FastAPI Application (Module 13)
 Main entry point for the backend server.
 """
 
+import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from backend.config import settings
 from backend.schemas import HealthResponse
@@ -78,7 +80,8 @@ async def api_report(request: ReportRequest):
 
     if request.format.lower() == "text":
         return PlainTextResponse(report_text)
-    return report_text  # returns json
+    # Parse the JSON string and return as proper dict/JSON
+    return JSONResponse(content=json.loads(report_text))
 
 
 @app.post("/api/migrate/multi", response_model=MultiFileMigrationResponse, tags=["migration"])

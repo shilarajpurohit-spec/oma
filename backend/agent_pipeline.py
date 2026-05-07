@@ -45,6 +45,8 @@ async def run_migration(request: MigrationRequest) -> MigrationResponse:
         original_code=response.original_code,
         migrated_code=response.migrated_code,
         issues=response.issues,
+        source_version=response.source_version,
+        target_version=response.target_version,
     )
     response.explanation = explanation
 

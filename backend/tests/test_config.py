@@ -19,11 +19,14 @@ class TestSettings:
         assert s.host == "0.0.0.0"
         assert s.port == 8000
 
-    def test_openrouter_defaults(self):
+    def test_openrouter_defaults(self, monkeypatch):
         """OpenRouter fields should have sensible defaults."""
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
+
         from backend.config import Settings
 
-        s = Settings()
+        s = Settings(_env_file=None)
         assert s.openrouter_base_url == "https://openrouter.ai/api/v1"
         assert s.llm_model == "deepseek/deepseek-r1:free"
 
